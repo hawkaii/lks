@@ -1,4 +1,5 @@
 import { AccessToken, RoomServiceClient, DataPacket_Kind } from "livekit-server-sdk";
+import type { TripState } from "../llm/types";
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || "devkey";
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || "secret";
@@ -29,11 +30,13 @@ export class LiveKitService {
     }
 
     // 2. Send "Intent" Signal to the Room
-    async sendIntentSignal(roomName: string, intent: string, audioFilename: string) {
+    async sendIntentSignal(roomName: string, intent: string, audioFilename: string, text: string, state: TripState) {
         const payload = JSON.stringify({
             type: "AGENT_RESPONSE",
             intent: intent,
-            audioUrl: `http://localhost:3000/audio/${audioFilename}` // Client will fetch this
+            audioUrl: `http://localhost:3000/audio/${audioFilename}`, // Client will fetch this
+            text: text,
+            state: state,
         });
 
         const encoder = new TextEncoder();

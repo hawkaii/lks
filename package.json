@@ -16,6 +16,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@google-cloud/text-to-speech": "^6.4.0",
     "@google-cloud/vertexai": "^1.10.0",
     "ioredis": "^5.8.2",
     "livekit-server-sdk": "^2.15.0"

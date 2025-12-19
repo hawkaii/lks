@@ -56,6 +56,7 @@ export interface User {
 export interface TripState {
 
     user: User
+    agentResponse?: string
 
     intent: INTENT;
 

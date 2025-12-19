@@ -3,7 +3,6 @@ import { INTENT, LANGUAGE, TRIP_TYPE, VEHICLE_TYPE, type TripState } from "./llm
 import { transcribeAudio } from "./stt/transcript";
 import redis from "./redis/redis";
 import { livekitService } from "./livekit/livekitService";
-import { generateAudio } from "./tts/ttsService";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -33,7 +32,6 @@ const startServer = async (port: number): Promise<Bun.Server<any>> => {
                 }));
             }
 
-            // Serves audio files (both static and dynamic)
             if (req.method === "GET" && url.pathname.startsWith("/audio/")) {
                 const filename = url.pathname.split("/").pop();
                 const filePath = `src/audio/${filename}`;
@@ -102,30 +100,30 @@ const startServer = async (port: number): Promise<Bun.Server<any>> => {
                         };
                     }
 
-                    // --- 1. STT ---
+                    // --- STT & LLM ---
                     console.time("transcription")
                     const transcription = await transcribeAudio(file);
                     console.timeEnd("transcription")
-
-                    // --- 2. LLM ---
                     console.time("newTripStateJsonString")
                     const newTripStateJsonString = await getTripStatusWithIntent(transcription, currentTripState);
                     console.timeEnd("newTripStateJsonString")
 
                     if (!newTripStateJsonString) throw new Error("LLM failed");
 
-                    const newTripState = JSON.parse(newTripStateJsonString) as TripState;
+                    const newTripState = JSON.parse(newTripStateJsonString);
                     await redis.set(`trip_state:${phone}`, JSON.stringify(newTripState), "EX", 300);
 
 
-                    // --- 3. TTS & LiveKit ---
-                    console.time("tts_generation");
-                    const agentResponseText = newTripState.agentResponse || "I am not sure how to respond to that.";
-                    const audioFilename = await generateAudio(agentResponseText);
-                    console.timeEnd("tts_generation");
+                    // --- TRIGGER LIVEKIT STREAMING ---
+                    let audioFile = "general.mp3";
+                    if (newTripState.intent === INTENT.ASK_DATE) audioFile = "ask_date.mp3";
+                    else if (newTripState.intent === INTENT.ASK_SOURCE) audioFile = "ask_source.mp3";
+                    else if (newTripState.intent === INTENT.ASK_DESTINATION) audioFile = "ask_destination.mp3";
+                    else if (newTripState.intent === INTENT.ASK_TRIP_TYPE) audioFile = "ask_trip_type.mp3";
+                    else if (newTripState.intent === INTENT.ASK_PREFERENCES) audioFile = "ask_price.mp3";
 
                     const roomName = `trip_${phone}`;
-                    await livekitService.sendIntentSignal(roomName, newTripState.intent, audioFilename, agentResponseText, newTripState);
+                    await livekitService.sendIntentSignal(roomName, newTripState.intent, audioFile);
 
                     return addCors(new Response(
                         JSON.stringify({ success: true, tripState: newTripState }),

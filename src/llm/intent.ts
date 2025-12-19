@@ -2,7 +2,7 @@ import { SchemaType, type GenerateContentRequest } from "@google-cloud/vertexai"
 import type { TripState } from "./types";
 import { getModel, MODELS } from "./vertex-ai";
 
-export const getPrompt = (
+export const buildPrompt = (
     todayDate: string,
     userTranscript: string,
     currentTripState: TripState
@@ -10,8 +10,7 @@ export const getPrompt = (
     return `
 <system_instruction>
   <role>
-    You are a deterministic intent classifier for a cab / trip booking assistant.
-    You operate as a finite-state machine, NOT a conversational agent.
+    You are a deterministic intent classifier and a polite travel assistant.
   </role>
 
   <context>
@@ -19,20 +18,20 @@ export const getPrompt = (
   </context>
 
   <task>
-    Analyze the user's input (<user_transcript>) and decide the NEXT intent based on the <current_trip_state> and strict <flow_logic>.
+    1. Analyze the <user_transcript> and <current_trip_state>.
+    2. Decide the NEXT intent using strict <flow_logic>.
+    3. Generate a polite, concise "agentResponse" to speak back to the user (e.g., asking for the missing slot or confirming details).
   </task>
 
   <strict_rules>
     <rule>Choose EXACTLY ONE intent from the allowed list.</rule>
-    <rule>Output JSON only. No markdown, no explanations.</rule>
-    <rule>Do NOT invent missing information. Use "undefined" if not specified.</rule>
-    <rule>Do NOT output values outside the defined enums.</rule>
+    <rule>Output JSON only.</rule>
+    <rule>The "agentResponse" must be natural, helpful, and directly related to the determined intent.</rule>
     <rule>If user says "any" or "doesn't matter", map to "none" or "XX".</rule>
-    <rule>Only trip-related intents are supported.</rule>
   </strict_rules>
 
   <domain_knowledge>
-    <enums>
+     <enums>
       <intent>greet, ask_source, ask_destination, ask_trip_type, ask_date, ask_preferences, general, unknown</intent>
       <trip_type>one_way, round_trip, not_decided</trip_type>
       <vehicle_type>suv, sedan, hatchback, none</vehicle_type>
@@ -49,7 +48,7 @@ export const getPrompt = (
   </domain_knowledge>
 
   <flow_logic>
-    <step priority="1" name="Greeting">
+     <step priority="1" name="Greeting">
       If message is purely a greeting -> SET intent="greet"
     </step>
 
@@ -85,10 +84,6 @@ export const getPrompt = (
   <user_transcript>
     "${userTranscript}"
   </user_transcript>
-
-  <output_format>
-    Generate a JSON object matching this schema. Do not include markdown code blocks.
-  </output_format>
 </system_instruction>
 `;
 };
@@ -97,23 +92,21 @@ export const getTripStatusWithIntent = async (userTranscript: string, tripState:
     console.log('calling with userTranscript')
 
     const currentDate = new Date();
+    const indianTime = currentDate.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
 
-    const indianTime = currentDate.toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata"
-    });
-
-    const prompt = getPrompt(indianTime, userTranscript, tripState);
-    const model = getModel(MODELS.FLASH, 512);
+    const prompt = buildPrompt(indianTime, userTranscript, tripState);
+    const model = getModel(MODELS.FLASH, 1536);
 
     const request: GenerateContentRequest = {
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: {
-            temperature: 0.0,
+            temperature: 0.5,
             responseMimeType: "application/json",
             responseSchema: {
                 type: SchemaType.OBJECT,
                 properties: {
                     intent: { type: SchemaType.STRING },
+                    agentResponse: { type: SchemaType.STRING },
                     source: { type: SchemaType.STRING },
                     destination: { type: SchemaType.STRING },
                     tripStartDate: { type: SchemaType.STRING },
@@ -137,7 +130,7 @@ export const getTripStatusWithIntent = async (userTranscript: string, tripState:
                         required: ["id", "name", "phone"]
                     }
                 },
-                required: ["intent", "source", "destination", "tripStartDate", "tripEndDate", "tripType", "preferences", "user"]
+                required: ["intent", "agentResponse", "source", "destination", "tripStartDate", "tripEndDate", "tripType", "preferences", "user"]
             }
         }
     }
