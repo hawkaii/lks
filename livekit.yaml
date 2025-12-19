@@ -1,0 +1,15 @@
+port: 7880
+bind_addresses:
+  - "0.0.0.0"
+
+rtc:
+  port_range_start: 50000
+  port_range_end: 50200
+  use_external_ip: false
+  node_ip: "172.29.212.123"
+
+keys:
+  devkey: secret
+
+logging:
+  level: info

@@ -53,9 +53,14 @@ export default function App() {
                 setIsConnected(true);
                 setStatus("Ready. Press Mic to Speak.");
 
-            } catch (err) {
-                console.error(err);
-                setStatus("Connection Failed");
+            } catch (err: any) {
+                console.error("LiveKit Connection Error:", err);
+                console.error("Error details:", {
+                    message: err.message,
+                    name: err.name,
+                    stack: err.stack
+                });
+                setStatus(`Connection Failed: ${err.message || 'Unknown error'}`);
             }
         };
 
@@ -113,18 +118,28 @@ export default function App() {
         formData.append("file", audioBlob, "input.mp3");
         formData.append("name", user.name);
         formData.append("phone", user.phone);
+        formData.append("id", user.phone); // Using phone as unique ID
 
         try {
             // Send to your backend
-            await fetch(`${SERVER_URL}/transcribe`, {
+            const response = await fetch(`${SERVER_URL}/transcribe`, {
                 method: "POST",
                 body: formData,
             });
-            // We don't need to do anything with the response here!
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("Transcription error:", errorData);
+                setStatus(`Error: ${errorData.error || 'Unknown error'}`);
+                return;
+            }
+            
+            const result = await response.json();
+            console.log("Transcription success:", result);
             // The Server will send a LiveKit signal when it's done.
-        } catch (err) {
-            console.error("Upload failed", err);
-            setStatus("Error sending audio");
+        } catch (err: any) {
+            console.error("Upload failed:", err);
+            setStatus(`Error sending audio: ${err.message}`);
         }
     };
 
